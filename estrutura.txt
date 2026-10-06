@@ -1,0 +1,93 @@
+Tudo que está fora na pasta principal e que está com o . na frente, ou ele é 
+um arquivo de desenvolvimento ou ele não é para sair de nossa máquina.
+Por exemplo o .env é pessoal, ele não será mostrado para ninguém.
+
+
+Pasta db, como a gente usa um serviço que não é nosso, a gente está instanciando um opensource, 
+com isso ele fica forá do src, nele tem arquivos de migração, que é o seguinte, a gente cria o banco de dados e vai lá no 
+banco de dados toda vez roda a query lá por exemplo, criar uma tabela, inserir uma coluna, e o que temos é tudo que a gente vai usar de banco de dados, 
+e isso faz com que  nosso processo de criação de bancos de dados seja repitivel.
+Toda vez que eu precisar fazer uma alteracao em uma tabela ou criar uma tabela, eu devo obrigatóriamente criar um arquivo de migracao e vai fazer com que ele 
+rode na migracao arquivo migrate.py na inicialização.
+
+
+
+
+Pasta docs, todos os documentos que você pode querer ver sobre o projeto estão lá.
+
+Pasta frontend, ainda não tem, mas será a interface para o cliente poder interagir com o agente.
+
+Agora precisamos saber onde a gente manipula o agente, onde que isso fica?
+Como o objetivo principal é criar um agente, eu gosto de colocar o que é principal do sistema na pasta 
+SRC.
+    Nele terá as pastas agents, server, shared e worker.
+
+    Na pasta Agents foi divido em diferentes categorias: 
+        - tools
+            - seria as ferramentas dos nossos agentes. 
+                - Exemplo: se você quer que o agente consiga consultar a previsão do tempo, você vai criar
+                uma ferramenta para isso e vai colocar nessa pasta.
+                - Exemplo 2: Se você quer uma ferramenta de busca na internet, você vai criar uma ferramenta
+                para isso e vai colocar nessa pasta.
+        -middleware
+            - Ele é uma forma de você interceptar a chamada ao seu agente de alguma maneira, 
+            ele pode ser uma interceptção antes de chegar no agente ou depois que o agente já fez alguma coisa,
+            antes da resposta ou depois da resposta ou entre ferramentas. 
+    
+        - Catalog
+            - onde ficará o agentão, agente raiz que vai gerenciar os outros agentes.
+            ele será responsável por receber a mensagem e decidir qual agente vai cuidar dela. 
+            - Para cada agente que eu queria gerar ele terá um padrão de estrutura.
+                - __init__.py
+                - agent.py 
+                    - Aqui é onde está de fato o nosso agente. A inteligência do agente está aqui.
+                    - E o que ele faz? Ele está importando diferentes bibliotecas, tem a função de criar o agente e cria o agente.
+                - prompts.py 
+                    - é onde fica os nossos prompts.
+                    - A boa prática é colocar o prompt fora do arquivo do agente.
+                - graph.py
+                    - Ele importa o build_graph() que é a função para construir o agente.
+                    - Quando a gente for colocar em produção é importante que esse build_graph esteja separado do langgraph.json
+                    Então, isso é pulo do gato, pra gente conseguir usar o mesmo ambiente que a gente desenvolve
+                    para o mesmo ambiente que a gente vai colocar em produção sem precisar fazer nenhuma modificação no código.
+    
+
+    Na pasta Server é quem fala com o mundo externo Então a gente usa FastAPI para criar um servidor web e expor uma API. 
+    Ele cria uma porta entre o nosso agente e o mundo, e vamos usar ele como porta, ele é o receptor das mensagens e a função dele é 
+    receber a mensagem e pronto, inicialmente para o nosso agente. O server recebe a requisição.
+
+
+    Na pasta Worker, ele vai ser um processo que vai ficar rodando em segundo plano, e toda vez que chegar uma mensagem no nosso agente,
+    ele vai colocar em uma fila de processamento. O worker é responsável por processar a mensagem e mandar para o agente. O worker é o trabalhador que irá mover as coisas
+    entre os diferentes componentes. Ele irá pegar a requisição e vai mandar para o agente e depois que sair do agente ele irá pegar e mandar para o próximo passo. 
+
+    Na pasta Shared ficam as coisas em comum entre os diferentes componentes. Tudo que for compartilhado
+    em mais de um componentes da arquitetura, eu coloco na pasta shared. Para evitar que eu reescrevo código e para evitar que 
+    responsabilidades compartilhadas  estejam associdas a um pacote e não ao compartilhado.
+
+        - queue.py é onde a gente implementa a fila de mensagens.
+
+    Estrutura do banco de dados:
+    Terá as tabelas:
+    - _migrations
+
+    - chackpoint_blobs           |
+    - checkpoint_migrations      |  -> série de tabelas que o langgraph cria para gerenciar o estado do agente.
+    - checkpoint_writes          |
+    - checkpoints                |
+
+    - conversations             | -> Tabela que eu criei para guardar as conversas.
+    - message_queue             | -> Tabela que eu criei para guardar as mensagens que chegam no agente.
+
+    - store                 |     
+    - store_migrations      | -> Tabelas criadas pelo langgraph para memória semântica. 
+    - store_vectors         |
+    - vector_migrations     |
+    
+
+    O modelo de dados é o coração operacional da Harness. 
+    O PostgreSQL registra a fila em message_queue, agrega o histórico por telefone 
+    e agente em conversations, sustenta checkpoints e memória do LangGraph e preserva 
+    a evolução do schema em _migrations. Concentrar essas 
+    responsabilidades no início reduz componentes sem esconder o ciclo completo 
+    de uma mensagem.
