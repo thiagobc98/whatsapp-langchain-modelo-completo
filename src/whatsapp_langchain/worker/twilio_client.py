@@ -74,10 +74,11 @@ class TwilioClient:
     def __init__(
         self,
         account_sid: str,
-        api_key_sid: str,
-        api_key_secret: str,
-        from_number: str,
+        api_key_sid: str = "",
+        api_key_secret: str = "",
+        from_number: str = "",
         *,
+        auth_token: str = "",
         delivery_mode: str = "real",
     ):
         if delivery_mode not in {"real", "mock"}:
@@ -89,10 +90,11 @@ class TwilioClient:
         if delivery_mode == "real":
             if not account_sid:
                 raise ValueError("account_sid não pode ser vazio")
-            if not api_key_sid:
-                raise ValueError("api_key_sid não pode ser vazio")
-            if not api_key_secret:
-                raise ValueError("api_key_secret não pode ser vazio")
+            if not ((api_key_sid and api_key_secret) or auth_token):
+                if not api_key_sid:
+                    raise ValueError("api_key_sid não pode ser vazio")
+                if not api_key_secret:
+                    raise ValueError("api_key_secret não pode ser vazio")
             if not from_number:
                 raise ValueError("from_number não pode ser vazio")
             if not from_number.startswith("whatsapp:+"):
@@ -104,15 +106,23 @@ class TwilioClient:
         self.account_sid = account_sid
         self.api_key_sid = api_key_sid
         self.api_key_secret = api_key_secret
+        self.auth_token = auth_token
         self.from_number = from_number
         self.delivery_mode = delivery_mode
         self.messages_url = TWILIO_MESSAGES_URL.format(account_sid=account_sid)
+
+    @property
+    def auth(self) -> tuple[str, str]:
+        """Retorna as credenciais para Basic Auth."""
+        if self.api_key_sid and self.api_key_secret:
+            return (self.api_key_sid, self.api_key_secret)
+        return (self.account_sid, self.auth_token)
 
     async def send_message(self, to: str, body: str) -> str:
         """Envia mensagem WhatsApp via Twilio Messages API.
 
         Faz POST para /Messages.json com autenticação Basic Auth
-        usando API Key (api_key_sid:api_key_secret).
+        usando API Key ou Account SID + Auth Token.
 
         Args:
             to: Número destino em E.164 (ex: +5511999999999).
@@ -150,11 +160,12 @@ class TwilioClient:
             return last_sid
 
         last_sid = ""
+        current_auth = self.auth
         async with httpx.AsyncClient() as http:
             for idx, chunk in enumerate(chunks, start=1):
                 response = await http.post(
                     self.messages_url,
-                    auth=(self.api_key_sid, self.api_key_secret),
+                    auth=current_auth,
                     data={
                         "From": self.from_number,
                         "To": f"whatsapp:{to}",
@@ -162,6 +173,29 @@ class TwilioClient:
                     },
                     timeout=15.0,
                 )
+
+                # Fallback para (account_sid, auth_token) se api_key falhar com 401
+                if (
+                    response.status_code == 401
+                    and self.auth_token
+                    and current_auth != (self.account_sid, self.auth_token)
+                ):
+                    logger.warning(
+                        "twilio_api_key_auth_failed_fallback_to_auth_token",
+                        to=to,
+                        status_code=response.status_code,
+                    )
+                    current_auth = (self.account_sid, self.auth_token)
+                    response = await http.post(
+                        self.messages_url,
+                        auth=current_auth,
+                        data={
+                            "From": self.from_number,
+                            "To": f"whatsapp:{to}",
+                            "Body": chunk,
+                        },
+                        timeout=15.0,
+                    )
 
                 if not response.is_success:
                     detail = response.text[:500]
@@ -225,16 +259,33 @@ class TwilioClient:
             return False
 
         try:
+            current_auth = self.auth
             async with httpx.AsyncClient() as http:
                 response = await http.post(
                     TWILIO_TYPING_URL,
-                    auth=(self.api_key_sid, self.api_key_secret),
+                    auth=current_auth,
                     data={
                         "messageId": message_sid,
                         "channel": "whatsapp",
                     },
                     timeout=5.0,
                 )
+
+                if (
+                    response.status_code == 401
+                    and self.auth_token
+                    and current_auth != (self.account_sid, self.auth_token)
+                ):
+                    current_auth = (self.account_sid, self.auth_token)
+                    response = await http.post(
+                        TWILIO_TYPING_URL,
+                        auth=current_auth,
+                        data={
+                            "messageId": message_sid,
+                            "channel": "whatsapp",
+                        },
+                        timeout=5.0,
+                    )
 
             if response.is_success:
                 logger.info("twilio_typing_sent", to=to, message_sid=message_sid)

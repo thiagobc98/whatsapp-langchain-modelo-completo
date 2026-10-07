@@ -71,7 +71,7 @@ class Settings(BaseSettings):
     # Todas as chamadas LLM, embeddings e transcrição usam OpenRouter
     openrouter_api_key: SecretStr | None = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    openrouter_model: str = "x-ai/grok-4.1-fast"
+    openrouter_model: str = "openai/gpt-4o-mini"
     # Modelo dedicado ao pré-processamento de mídia (imagem/áudio)
     openrouter_midia_model: str = "google/gemini-2.5-flash-lite"
 
@@ -93,7 +93,7 @@ class Settings(BaseSettings):
     trim_keep_turns: int = 5
     summarize_trigger_tokens: int = 4000
     summarize_keep_messages: int = 10
-    summarize_model: str = "x-ai/grok-4.1-fast"
+    summarize_model: str = "openai/gpt-4o-mini"
 
     # --- Internal Service Token ---
     # Token compartilhado entre frontend e API para proteger rotas administrativas.

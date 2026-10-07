@@ -76,6 +76,10 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/whatsapp_langchain
       BETTER_AUTH_SECRET: dev-secret-change-in-production-min-32-chars!!
       BETTER_AUTH_URL: http://localhost:3000
+      # Primeiro admin (criado no primeiro acesso a /login se auth."user" estiver vazio)
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_NAME: ${ADMIN_NAME:-Admin}
     depends_on:
       api:
         condition: service_healthy

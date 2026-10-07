@@ -49,13 +49,15 @@ async def main() -> None:
 
     outbound_mode = settings.resolved_twilio_outbound_mode
     if outbound_mode == "real":
+        has_api_key = bool(
+            settings.twilio_api_key_sid and settings.twilio_api_key_secret
+        )
+        has_auth_token = bool(settings.twilio_auth_token)
         missing = []
         if not settings.twilio_account_sid:
             missing.append("TWILIO_ACCOUNT_SID")
-        if not settings.twilio_api_key_sid:
-            missing.append("TWILIO_API_KEY_SID")
-        if not settings.twilio_api_key_secret:
-            missing.append("TWILIO_API_KEY_SECRET")
+        if not (has_api_key or has_auth_token):
+            missing.append("TWILIO_API_KEY_SID + TWILIO_API_KEY_SECRET ou TWILIO_AUTH_TOKEN")
         if not settings.twilio_from_number:
             missing.append("TWILIO_FROM_NUMBER")
 
@@ -75,6 +77,7 @@ async def main() -> None:
         account_sid=settings.twilio_account_sid,
         api_key_sid=settings.twilio_api_key_sid,
         api_key_secret=settings.twilio_api_key_secret,
+        auth_token=settings.twilio_auth_token,
         from_number=settings.twilio_from_number,
         delivery_mode=outbound_mode,
     )
